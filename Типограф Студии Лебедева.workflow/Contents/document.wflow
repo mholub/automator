@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AMApplicationBuild</key>
+	<string>330</string>
+	<key>AMApplicationVersion</key>
+	<string>2.2.1</string>
+	<key>AMDocumentVersion</key>
+	<string>2</string>
+	<key>actions</key>
+	<array>
+		<dict>
+			<key>action</key>
+			<dict>
+				<key>AMAccepts</key>
+				<dict>
+					<key>Container</key>
+					<string>List</string>
+					<key>Optional</key>
+					<true/>
+					<key>Types</key>
+					<array>
+						<string>com.apple.cocoa.string</string>
+					</array>
+				</dict>
+				<key>AMActionVersion</key>
+				<string>2.0.2</string>
+				<key>AMApplication</key>
+				<array>
+					<string>Automator</string>
+				</array>
+				<key>AMParameterProperties</key>
+				<dict>
+					<key>COMMAND_STRING</key>
+					<dict/>
+					<key>CheckedForUserDefaultShell</key>
+					<dict/>
+					<key>inputMethod</key>
+					<dict/>
+					<key>shell</key>
+					<dict/>
+					<key>source</key>
+					<dict/>
+				</dict>
+				<key>AMProvides</key>
+				<dict>
+					<key>Container</key>
+					<string>List</string>
+					<key>Types</key>
+					<array>
+						<string>com.apple.cocoa.string</string>
+					</array>
+				</dict>
+				<key>ActionBundlePath</key>
+				<string>/System/Library/Automator/Run Shell Script.action</string>
+				<key>ActionName</key>
+				<string>Run Shell Script</string>
+				<key>ActionParameters</key>
+				<dict>
+					<key>COMMAND_STRING</key>
+					<string>#!/usr/bin/which python
+# -*- encoding: windows-1251 -*-
+
+"""
+	remotetypograf.py
+	python-implementation of ArtLebedevStudio.RemoteTypograf class (web-service client)
+	
+	Copyright (c) Art. Lebedev Studio | http://www.artlebedev.ru/
+
+	Typograf homepage: http://typograf.artlebedev.ru/
+	Web-service address: http://typograf.artlebedev.ru/webservices/typograf.asmx
+	WSDL-description: http://typograf.artlebedev.ru/webservices/typograf.asmx?WSDL
+	
+	Default charset: UTF-8
+
+	Python version 
+	Author: Sergey Lavrinenko (s.lavrinenko@gmail.com)
+	Version: 1.0 (2007-05-18) based on script by Andrew Shitov (ash@design.ru)
+
+	Example:
+		from RemoteTypograf import RemoteTypograf
+	        rt = RemoteTypograf()
+		# rt = RemoteTypograf('windows-1251')
+
+"""
+
+import socket
+import sys
+import re
+import os
+
+class RemoteTypograf:
+
+	_entityType = 4
+	_useBr = 1
+	_useP = 1
+	_maxNobr = 3
+	_encoding = 'UTF-8'
+
+	def __init__(self, encoding='UTF-8'):
+		self._encoding = encoding
+
+
+	def htmlEntities(self):
+		self._entityType = 1
+
+
+	def xmlEntities(self):
+		self._entityType = 2
+
+
+	def mixedEntities(self):
+		self._entityType = 4
+
+
+	def noEntities(self):
+		self._entityType = 3
+
+
+	def br(self, value):
+		if value:
+			self._useBr = 1
+		else:
+			self._useBr = 0
+
+	
+	def p(self, value):
+		if value:
+			self._useP = 1
+		else:
+			self._useP = 0
+
+	
+	def nobr(self, value):
+		if value:
+			self._maxNobr = value
+		else:
+			self._maxNobr = 0
+
+
+
+	def processText(self, text):
+
+		text = text.replace('&amp;', '&amp;amp;')
+		text = text.replace('&lt;', '&amp;lt;')
+		text = text.replace ('&gt;', '&amp;gt;')
+
+		SOAPBody  = '&lt;?xml version="1.0" encoding="%s"?&gt;\n' % self._encoding
+		SOAPBody += '&lt;soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"&gt;\n'
+		SOAPBody += '&lt;soap:Body&gt;\n'
+		SOAPBody += ' &lt;ProcessText xmlns="http://typograf.artlebedev.ru/webservices/"&gt;\n'
+		SOAPBody += '  &lt;text&gt;%s&lt;/text&gt;\n' % text
+		SOAPBody += '     &lt;entityType&gt;%s&lt;/entityType&gt;\n' % self._entityType
+		SOAPBody += '     &lt;useBr&gt;%s&lt;/useBr&gt;\n' % self._useBr
+		SOAPBody += '     &lt;useP&gt;%s&lt;/useP&gt;\n' % self._useP
+		SOAPBody += '     &lt;maxNobr&gt;%s&lt;/maxNobr&gt;\n' % self._maxNobr 
+		SOAPBody += '	&lt;/ProcessText&gt;\n'
+		SOAPBody += ' &lt;/soap:Body&gt;\n'
+		SOAPBody += '&lt;/soap:Envelope&gt;\n'
+
+		host = 'typograf.artlebedev.ru';
+		SOAPRequest  = 'POST /webservices/typograf.asmx HTTP/1.1\n'
+		SOAPRequest += 'Host: typograf.artlebedev.ru\n'
+		SOAPRequest += 'Content-Type: text/xml\n'
+		SOAPRequest += 'Content-Length: %d\n' % len(SOAPBody)
+		SOAPRequest += 'SOAPAction: "http://typograf.artlebedev.ru/webservices/ProcessText"\n\n'
+
+		SOAPRequest += SOAPBody
+
+
+		remoteTypograf = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		remoteTypograf.connect((host, 80))
+		remoteTypograf.sendall(SOAPRequest)
+
+		typografResponse = ''
+		while 1:
+			buf = remoteTypograf.recv(8192)
+			if len(buf)==0: break
+			typografResponse += buf
+
+		remoteTypograf.close()
+
+		
+		startsAt = typografResponse.find('&lt;ProcessTextResult&gt;') + 19
+		endsAt = typografResponse.find('&lt;/ProcessTextResult&gt;')
+		typografResponse = typografResponse[startsAt:endsAt]
+
+
+		typografResponse = typografResponse.replace('&amp;amp;', '&amp;' )
+		typografResponse = typografResponse.replace('&amp;lt;', '&lt;')
+		typografResponse = typografResponse.replace ('&amp;gt;', '&gt;')
+		
+
+		return  typografResponse
+
+rt = RemoteTypograf() # UTF-8
+rt.noEntities();
+rt.p(0)
+rt.br(0);
+answer = rt.processText(sys.stdin.read())
+print re.sub(os.linesep + r'\Z','',answer)
+</string>
+					<key>CheckedForUserDefaultShell</key>
+					<true/>
+					<key>inputMethod</key>
+					<integer>0</integer>
+					<key>shell</key>
+					<string>/usr/bin/python</string>
+					<key>source</key>
+					<string></string>
+				</dict>
+				<key>BundleIdentifier</key>
+				<string>com.apple.RunShellScript</string>
+				<key>CFBundleVersion</key>
+				<string>2.0.2</string>
+				<key>CanShowSelectedItemsWhenRun</key>
+				<false/>
+				<key>CanShowWhenRun</key>
+				<true/>
+				<key>Category</key>
+				<array>
+					<string>AMCategoryUtilities</string>
+				</array>
+				<key>Class Name</key>
+				<string>RunShellScriptAction</string>
+				<key>InputUUID</key>
+				<string>116650A7-7A4E-4DDF-AC4A-095B76569761</string>
+				<key>Keywords</key>
+				<array>
+					<string>Shell</string>
+					<string>Script</string>
+					<string>Command</string>
+					<string>Run</string>
+					<string>Unix</string>
+				</array>
+				<key>OutputUUID</key>
+				<string>5616F157-FCDB-4160-9049-6371F12F2741</string>
+				<key>UUID</key>
+				<string>E992C6DA-EF51-481E-8A25-042685494772</string>
+				<key>UnlocalizedApplications</key>
+				<array>
+					<string>Automator</string>
+				</array>
+				<key>arguments</key>
+				<dict>
+					<key>0</key>
+					<dict>
+						<key>default value</key>
+						<integer>0</integer>
+						<key>name</key>
+						<string>inputMethod</string>
+						<key>required</key>
+						<string>0</string>
+						<key>type</key>
+						<string>0</string>
+						<key>uuid</key>
+						<string>0</string>
+					</dict>
+					<key>1</key>
+					<dict>
+						<key>default value</key>
+						<string></string>
+						<key>name</key>
+						<string>source</string>
+						<key>required</key>
+						<string>0</string>
+						<key>type</key>
+						<string>0</string>
+						<key>uuid</key>
+						<string>1</string>
+					</dict>
+					<key>2</key>
+					<dict>
+						<key>default value</key>
+						<false/>
+						<key>name</key>
+						<string>CheckedForUserDefaultShell</string>
+						<key>required</key>
+						<string>0</string>
+						<key>type</key>
+						<string>0</string>
+						<key>uuid</key>
+						<string>2</string>
+					</dict>
+					<key>3</key>
+					<dict>
+						<key>default value</key>
+						<string></string>
+						<key>name</key>
+						<string>COMMAND_STRING</string>
+						<key>required</key>
+						<string>0</string>
+						<key>type</key>
+						<string>0</string>
+						<key>uuid</key>
+						<string>3</string>
+					</dict>
+					<key>4</key>
+					<dict>
+						<key>default value</key>
+						<string>/bin/sh</string>
+						<key>name</key>
+						<string>shell</string>
+						<key>required</key>
+						<string>0</string>
+						<key>type</key>
+						<string>0</string>
+						<key>uuid</key>
+						<string>4</string>
+					</dict>
+				</dict>
+				<key>conversionLabel</key>
+				<integer>0</integer>
+				<key>isViewVisible</key>
+				<true/>
+				<key>location</key>
+				<string>649.500000:613.000000</string>
+				<key>nibPath</key>
+				<string>/System/Library/Automator/Run Shell Script.action/Contents/Resources/English.lproj/main.nib</string>
+			</dict>
+			<key>isViewVisible</key>
+			<true/>
+		</dict>
+	</array>
+	<key>connectors</key>
+	<dict/>
+	<key>workflowMetaData</key>
+	<dict>
+		<key>serviceInputTypeIdentifier</key>
+		<string>com.apple.Automator.text</string>
+		<key>serviceOutputTypeIdentifier</key>
+		<string>com.apple.Automator.text</string>
+		<key>serviceProcessesInput</key>
+		<integer>0</integer>
+		<key>workflowTypeIdentifier</key>
+		<string>com.apple.Automator.servicesMenu</string>
+	</dict>
+</dict>
+</plist>
